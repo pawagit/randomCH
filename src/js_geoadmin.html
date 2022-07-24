@@ -1,0 +1,100 @@
+<script>
+    /**
+     * API Calls to retrieve information for the given coordinates
+     * - two async calls in parallel, awaiting both promises before logging the data
+     * */
+     async function getCoordInfo(coords) {
+        const myInfo = RestGeoAdminCall(coords);
+        const myHeight = getHeight(coords[0], coords[1]);
+
+        // Await promises, then log return them
+        await Promise.all([
+          getHeight(coords[0], coords[1]),
+          RestGeoAdminCall(coords),
+        ]).then( (values) => {
+          console.log('All infos fetched!')
+          //console.log(values)
+          logToGAS(); // Log the new values to GAS
+          return values;
+        });
+    }
+
+
+    /**
+     * geo.admin.ch REST API - Call1 "myInfo"
+     * */
+    async function RestGeoAdminCall(coords) {
+        /**
+         * REST API geo.admin.ch - Swissboundaries etc
+         * */
+        var lyr = 'ch.swisstopo.swissboundaries3d-gemeinde-flaeche.fill,ch.swisstopo-vd.ortschaftenverzeichnis_plz';
+        let url = 'https://api3.geo.admin.ch/rest/services/api/MapServer/identify?geometryType=esriGeometryPoint&geometry=' +
+            coords[0] + ',' + coords[1] + '&sr=2056' +
+            '&imageDisplay=0,0,0&mapExtent=0,0,0,0&tolerance=0&layers=all:' + lyr + '&lang=de&returnGeometry=false';
+
+        let str = '<h1 text-danger>no info</h1>';
+
+        try {
+            let res = await fetch(url);
+            let txt = await res.text();
+            let data = JSON.parse(txt);
+            gemname = data.results[0].attributes.gemname;
+            kanton = data.results[0].attributes.kanton;
+            //console.log(gemname, kanton)
+
+            str = (gemname.slice(-1) == ')') ? gemname : `${data.results[0].attributes.gemname} (${data.results[0].attributes.kanton})`;
+            document.getElementById('locationTitle').innerHTML = str;
+            title = str; // Update global var
+            return data.results;
+
+        } catch (error) {
+            console.log(error);
+        }
+    }
+
+
+    /**
+     * geo.admin.ch REST API - Call1 "myHeight"
+     * 
+     * Fetches the Elevation for the given Coordinates
+     * */
+    async function getHeight(easting, northing) {
+        //https://api3.geo.admin.ch/rest/services/height?easting=2655861.75444577&northing=1257793.8817004
+
+        //var offsetN = -300;
+        var E = parseFloat(easting); //console.log('coord E is: ',E) //2657039;
+        var N = parseFloat(northing); //console.log('coord N is: ',N) //1263721 + offsetN;
+        
+        // if (checkNumber(E) && checkNumber(N)) {
+        //   //console.log('valid')
+        // } else {
+        //   console.error('invalid easting/northing!');
+        //   return false;
+        // }
+
+        var url = 'https://api3.geo.admin.ch/rest/services/height?easting=' +
+            E +
+            '&northing=' +
+            N +
+            '&format=json';
+        //console.log(url)
+
+        try {
+            let res = await fetch(url);
+            let txt = await res.text();
+            let data = JSON.parse(txt);
+
+            const out = [[E, N, url, data.height]]; //console.log(out);
+            const str = data.height + ' müM';
+            document.getElementById('locationSubtitle').innerHTML = str;
+            height = data.height; // Update global var
+            subtitle = str;    // Update global var
+            return data.height;
+
+        } catch (error) {
+            console.log(error);
+        }
+    }
+
+
+</script>

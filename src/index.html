@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+
+    <!-- Viewport -->
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width">
+   
+    <!-- CSS Styles -->
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/boxicons@latest/css/boxicons.min.css" rel="stylesheet">
+    <!-- OpenLayers v6.14.1 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.14.1/css/ol.css" type="text/css">
+    
+    <!-- INCLUDE css.html -->
+    <?!= include('css'); ?>
+
+    <!-- Page Title -->
+    <title><?= PAGE_TITLE ?></title>
+
+    
+</head>
+
+
+<!-- Page Body -->
+<body class="bg-dark">
+    <div id="main" class="container-fluid">
+      
+      <!-- Map Container with Popup -->
+      <div id="map" class="map px-0"></div>
+      <div id="popup" class="ol-popup"></div>
+
+      <!-- Main Overlay -->
+      <div class="position-absolute bottom-0 start-0 ">
+        <div id="overlay" class="card mx-2 mx-md-3 mb-2 mb-md-4 p-2 p-md-3 p-xxl-4 text-wrap text-break d-block"
+          onclick="CopyToClipboard()" 
+          data-bs-toggle="popover" data-bs-placement="top" data-bs-content="Date sind kopiert! 😃">
+          <h1 id="locationTitle" class="display-3"></h1>
+          <h2 id="locationSubtitle" class="display-6"><span class="spinner-border fw-lighter" role="status"></span> Prepare for the awesomeness... 🤓</h2>
+          
+        </div>
+      </div>
+
+
+      <!-- Modal -->
+      <div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-fullscreen-xl-down">
+          <div class="modal-content text-light">
+            
+            <div class="modal-header">
+              <h3 class="display-5"><span class="text-yellow">CH</span> by random</h3>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-light">
+              <p>D Schwiiz mit ihrne vielne wunderbare und hübsche Ort isch einzigartig. Einzigartig uf dä Wält isch au die usserordentlich Qualität vo dä Schwiizer Geodate - und dass sie dä Öffentlichkeit choschtelos zur Verfüegig stönd.</p>
+              <h5 class="text-yellow mb-2 fs-5 text-300">Die App fiiret genau die Tatsache und zeigt dir nachm Zuefallsprinzip Ort idä Schwiiz, wo'd eso villicht noni ufm Schirm gha häsch. <br><span class="small">Di z'letscht bsuechte Ort sind uf dä Charte markiert und wänn dir en Ort gfallt, chaschn zudä Likes hinzuefüege.</span></h5><h5 class="text-yellow mb-2 fs-5 text-300">Uf dass es viel z'Entdecke git! 🥳</h5>
+              <p class="text-400 mt-4 mb-1">Verwändeti Date © <a href="https://www.swisstopo.admin.ch/en/home.html" class="link-pawa">swisstopo</a> <span class="small text-300">← s'Beschte Bundesamt überhaupt 😉</span></p>
+              <p class="mx-0">Basiskarte: <span class="fw-bolder">Swissimage</span> <br>Geofence: <span class="fw-bolder">Swissboundaries3D</span> (k4l22), <br>Gemeindename & Höhe ü.M: <span class="fw-bolder">GeoAdmin API Map Server & Height service</span></p>
+            </div>
+            <div class="modal-footer">
+              <div class="col align-self-center">
+                <p class="fs-6 fw-lighter my-0">
+                  © 2022 by <a href="https://pawa.ch/" class="link-pawa">pawa</a>. Source Code uf <a href="https://github.com/pawagit/randomCH" class="link-pawa">github</a>
+                </p>
+              </div>
+              <button type="button" class="btn btn-pawa" data-bs-dismiss="modal">Schlüsse</button>
+            </div>
+          </div>
+        </div>
+    </div>
+
+      <!-- Controls Top -->
+      <div id="controls-top" class="position-absolute top-0 end-0  mt-2 me-2 fs-1 text-light invisible" >
+
+          <!-- Fullscreen Control -->
+          <div id="fs" type="button" onclick="toggleFullscreen()"><i class='bx bx-fullscreen'></i></div>
+
+          <!-- Pause/Play Control -->
+          <div id="toggleAnimation" type="button" onclick="toggleInterval()"><i class='bx bx-pause-circle'></i></div>
+
+          <!-- Next Control -->
+          <div id="next" type="button" onclick="nextLocation()"><i class='bx bx-skip-next-circle'></i></div>
+
+          <!-- Share Control -->
+          <div id="share" type="button" onclick="telegramShare()"><i class='bx bxl-telegram'></i></div>
+
+          <!-- Like Control -->
+          <div id="like" type="button" onclick="likeLocation()" data-bs-toggle="popover" data-bs-placement="left" data-bs-content="D'Location isch gliked! ❤️"><i class='bx bx-heart'></i></div>
+
+          <!-- Info modal Control -->
+          <div id="info" data-bs-toggle="modal" data-bs-target="#infoModal" data-toggle="tooltip" data-placement="left" title="Show Info"><i class='bx bx-info-circle'></i></div>
+      </div>
+
+      <!-- Controls Middle -->
+      <div id="controls-middle" class="position-absolute top-50 end-0 m-2" >
+      </div>
+
+      <!-- Controls Bottom-->
+      <div id="controls-bottom" class="position-absolute bottom-0 end-0 m-2" >
+      </div>
+      
+    </div>
+    
+    <!-- Javascript -->
+    <!-- Include My Javascript files content-->
+    <?!= include('js_wakeLock'); ?> 
+    <?!= include('js_initMap'); ?> 
+    <?!= include('js_main'); ?>  
+    <?!= include('js_geoadmin'); ?>  
+    <?!= include('js_additional'); ?>  
+    <?!= include('js_randCoord'); ?> 
+    <?!= include('geoJson_switzerland'); ?>  
+
+    <!-- Day.js 1.11.3 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.3/dayjs.min.js" integrity="sha512-Ot7ArUEhJDU0cwoBNNnWe487kjL5wAOsIYig8llY/l0P2TUFwgsAHVmrZMHsT8NGo+HwkjTJsNErS6QqIkBxDw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script> 
+    <!-- Custom Day.js Schwiizerdüütsch Locale -->
+    <?!= include('js_days_de-swiss'); ?> 
+
+    <!-- JQuery v1.10.1 -->
+    <script src="https://code.jquery.com/jquery-1.10.1.min.js"></script>
+
+    <!-- Bootstrap 5 JavaScript Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-/bQdsTh/da6pkI1MST/rWKFNjaCP5gBSY4sEBT38Q/9RBh9AH40zEOg7Hlq2THRZ"
+        crossorigin="anonymous"></script>
+
+    <!-- OpenLayers v6.14.1 -->
+    <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.14.1/build/ol.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js" integrity="sha512-ha3Is9IgbEyIInSb+4S6IlEwpimz00N5J/dVLQFKhePkZ/HywIbxLeEu5w+hRjVBpbujTogNyT311tluwemy9w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+
+
+</body>
+
+</html>

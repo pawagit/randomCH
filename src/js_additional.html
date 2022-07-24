@@ -1,0 +1,131 @@
+<script>
+
+    /**
+     * Copies the Location data to the clipboard
+     * */
+    function CopyToClipboard() {
+        let txt1 = document.getElementById('locationTitle').innerHTML;
+        let txt2 = document.getElementById('locationSubtitle').innerHTML;
+
+        /* Define the data to be copied */
+        let str = [
+            txt1,
+            txt2,
+            Lat,
+            Lon,
+            coords[0],
+            coords[1],
+            height,
+            gemname,
+            kanton,
+            'https://map.geo.admin.ch/?lang=en&topic=ech&bgLayer=ch.swisstopo.swissimage&E=' + coords[0] + '&N=' + coords[1] + '&zoom=9',
+        ].join('\t');
+        console.log('str: \n', str)
+
+        /* Copy the text to the Clipboard */
+        navigator.clipboard.writeText(str);
+        /* Alert the copied text */
+        //alert("Copied the text: \n"+str)
+        $('#overlay').popover('show');
+        setTimeout(function () { $('#overlay').popover('hide'); }, 2000);
+    }
+
+
+
+    /**
+     * Toggles the fullscreen mode
+     * */
+    function toggleFullscreen() {
+        /* Get the element that shall go fullscreen */
+        let elem = document.querySelector("#main");
+
+        if (!document.fullscreenElement) {
+            elem.requestFullscreen().catch(err => {
+                alert(`Error attempting to enable fullscreen mode: ${err.message} (${err.name})`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+
+
+    /**
+     * Proceeds directly to the next random location
+     * */
+    function nextLocation() {
+        clearInterval(intervalRandomCoords)
+        intervalRandomCoords = setInterval(centerOnCoordinates, INTERVAL);
+        restartTimeout = setTimeout(centerOnCoordinates, 200);
+        $('#toggleAnimation').html("<i class='bx bx-pause-circle fs-1'></i>")
+    }
+
+
+    /**
+     * Logs the current position to a google spreadsheet via GAS
+     * */
+    function logToGAS(user) {
+        //console.log('logToGAS is called!')
+        let data = [ID].concat(
+            Lat,
+            Lon,
+            coords, // [E,N]
+            height, // Elevation of center coordinates
+            gemname,
+            kanton,
+            title,
+            subtitle,
+            // document.getElementById('locationTitle').innerHTML,
+            // document.getElementById('locationSubtitle').innerHTML,
+        );
+
+        if (user) { data.push(user); }
+
+        //console.log('DATA pushed to GAS: ', data)
+        /** Push data to GAS */
+        google.script.run.withSuccessHandler(logSuccess).saveData(JSON.stringify({ data: data, user: user }));
+    }
+    /** on logToGAS() Succes */
+    function logSuccess(res) {
+        console.log('logToGAS success! ', res)
+    }
+
+
+    /**
+     * Like this Location - Stores the location to GAS 
+     * */
+    function likeLocation() {
+        if (!IS_LIKED) {
+            //document.getElementById('like').innerHTML = ;
+            $('#like').html("<i class='bx bxs-heart'></i>");
+            $('#like').addClass('text-yellow');
+            logToGAS(user || 'anonymous');
+            IS_LIKED = true;
+            $('#like').popover('show');
+            setTimeout(function () { $('#like').popover('hide'); }, 2000);
+
+        } else {
+            console.warn('// the location is already liked')
+            setTimeout(function () { $('#like').popover('hide'); }, 1000);
+        }
+    }
+
+
+    function telegramShare() {
+        //var coords = [2644366, 1242268];
+        /**
+         * Telegram Share Url Templates:
+         * 
+         * https://t.me/share/url?url={url}&text={text}
+         * https://telegram.me/share/url?url={url}&text={text}
+         * → tg://msg_url?url={url}&text={text}
+         * */
+        let url = 'https://map.geo.admin.ch/?lang=en&topic=ech&bgLayer=ch.swisstopo.swissimage&E=' + coords[0] + '&N=' + coords[1] + '&zoom=9';
+        let message = '\nCheck emal das hübsche 🇨🇭-Plätzli in ' + document.getElementById('locationTitle').innerHTML + '!\n';
+        let shareUrl = 'tg://msg_url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(message);
+        console.log(shareUrl)
+        window.open(shareUrl);
+        return url;
+    }
+
+</script>

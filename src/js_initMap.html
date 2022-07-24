@@ -1,0 +1,592 @@
+<script>
+    /**
+     * Global Map Variables
+     * */
+    var map;    // Map Object
+    var view;
+    var MAP_PROJ = 'EPSG:2056';
+    var coords; // Map View center coordinates (random)
+    var Lat; var Lon; var ID; var IS_LIKED;
+    var height; // Elevation of center coordinates
+    var gemname;
+    var kanton;
+    var title;
+    var subtitle;
+    var geoJsonLayer; // CH Polygon layer against which the coordinates are checked
+    var intervalRandomCoords; // Random Coordinates every x seconds → redraws the map
+
+    var user; // the current user (requires 'anyone with a google account' deployment)
+
+
+    const isMobile = ("ontouchstart" in document.documentElement && navigator.userAgent.match(/Mobi/));
+    console.log( (isMobile) ? '📱 mobile device!' : '💻 no touch device!')
+    const zoom = (isMobile) ? 16 : 18; // Choose a smaller zoom for mobile devices
+    const INTERVAL = 15000; // interval in milliseconds to draw new, random coordinates
+
+    async function initMap(DATA_JSON) {
+        console.log('🚀 Initialising map...')
+
+        /**
+         * Acquiring Screen Lock to prevent the display from sleeping
+         * */
+         await lockWakeState();
+         
+         
+
+
+
+        /**
+         * Parse the JSON Data passed from GAS 
+         * and make it globally available
+         * */
+         //console.log(DATA_JSON)
+         DATA = JSON.parse(DATA_JSON);
+         user = DATA.user;
+         console.warn('user is %s', user)
+
+
+
+
+
+
+
+        /**
+         * CRS Projection Definition
+         * */
+        // adding Swiss projections to proj4 (proj string comming from https://epsg.io/)
+        proj4.defs(
+          "EPSG:2056",
+          "+proj=somerc +lat_0=46.95240555555556 +lon_0=7.439583333333333 +k_0=1 +x_0=2600000 +y_0=1200000 +ellps=bessel +towgs84=674.374,15.056,405.346,0,0,0,0 +units=m +no_defs"
+        );
+        proj4.defs(
+          "EPSG:21781",
+          "+proj=somerc +lat_0=46.95240555555556 +lon_0=7.439583333333333 +k_0=1 +x_0=600000 +y_0=200000 +ellps=bessel +towgs84=674.4,15.1,405.3,0,0,0,0 +units=m +no_defs"
+        );
+        ol.proj.proj4.register(proj4); // Register the projections
+
+
+        /**
+         * GeoJSON Layer Test
+         * */
+        
+        /**
+         * STYLES Object holding all styles used for the GeoJSON Layer
+         * */
+        const image = new ol.style.Circle({
+          radius: 5,
+          fill: null,
+          stroke: new ol.style.Stroke({color: 'red', width: 1}),
+        });
+
+        const styles = {
+          'Point': new ol.style.Style({
+            image: image,
+          }),
+          'LineString': new ol.style.Style({
+            stroke: new ol.style.Stroke({
+              color: 'green',
+              width: 1,
+            }),
+          }),
+          'MultiLineString': new ol.style.Style({
+            stroke: new ol.style.Stroke({
+              color: 'green',
+              width: 1,
+            }),
+          }),
+          'MultiPoint': new ol.style.Style({
+            image: image,
+          }),
+          'MultiPolygon': new ol.style.Style({
+            stroke: new ol.style.Stroke({
+              color: 'yellow',
+              width: 1,
+            }),
+            fill: new ol.style.Fill({
+              color: 'rgba(255, 255, 0, 0.05)',
+            }),
+          }),
+          'Polygon': new ol.style.Style({
+            stroke: new ol.style.Stroke({
+              color: 'blue',
+              lineDash: [4],
+              width: 3,
+            }),
+            fill: new ol.style.Fill({
+              color: 'rgba(0, 0, 255, 0.1)',
+            }),
+          }),
+          'GeometryCollection': new ol.style.Style({
+            stroke: new ol.style.Stroke({
+              color: 'magenta',
+              width: 2,
+            }),
+            fill: new ol.style.Fill({
+              color: 'magenta',
+            }),
+            image: new ol.style.Circle({
+              radius: 10,
+              fill: null,
+              stroke: new ol.style.Stroke({
+                color: 'magenta',
+              }),
+            }),
+          }),
+          'Circle': new ol.style.Style({
+            stroke: new ol.style.Stroke({
+              color: 'red',
+              width: 2,
+            }),
+            fill: new ol.style.Fill({
+              color: 'rgba(255,0,0,0.2)',
+            }),
+          }),
+        };
+
+
+        /**
+         * Create a Styling Function that returns the style based on the feature geometry type
+         * */
+        const styleFunction = function (feature) {
+          return styles[feature.getGeometry().getType()];
+        };
+
+        // Read the GeoJSON data
+        const geojsonObject = schweiz;    
+        //console.log(geojsonObject) 
+
+        // Create the GeoJSON source
+        const geoJsonSource = new ol.source.Vector({
+            features: new ol.format.GeoJSON().readFeatures(geojsonObject, {
+              featureProjection: MAP_PROJ, // since the coords are in WGS, we need to project them to the MAP_PROJ
+              }),
+            attributions: 'POI-data: © <a href="https://www.pawa.ch">pawa</a>',
+        });
+
+        // Create the GeoJSON Layer using the source and dyanmic styling function
+        geoJsonLayer = new ol.layer.Vector({
+            id: 'geojson-layer',
+            source: geoJsonSource,
+            style: styleFunction,
+        });
+        console.log('In total, %s geoJSON features created.',geoJsonLayer.getSource().getFeatures().length)
+
+
+        /**
+         * Background Layers Definition
+         * */
+
+        /** Swissimage Orthophoto */
+        const ortho = new ol.layer.Tile({
+            id: "swissimage-layer",
+            opacity: 1, //Config.BGLAYER_OPAC,
+            source: new ol.source.XYZ({
+                url: 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage-product/default/current/3857/{z}/{x}/{y}.jpeg',
+                attributions: 'bg-map: © <a href="https://www.swisstopo.admin.ch/en/home.html">swisstopo</a>',
+                //maxZoom: 28
+            })
+        });
+
+
+
+
+
+
+
+        /**
+         * Determine a random map center within CH
+         * */
+        coords = getRandomCHCoordinates();
+        
+
+
+        
+          
+
+        /**
+         * Map View Definition
+         * */
+        view = new ol.View({
+            projection: 'EPSG:2056',
+            center: coords || [2656907, 1186700],
+            zoom: zoom,
+            minZoom: (isMobile) ? 10 : 9,
+            maxZoom: 20, 
+        });
+
+
+        /**
+         * MAP Defintion
+         *  - Defines the map incl controls, view, layers
+         *  - The map is zoomed to the POI layer source's extent
+         * */
+        var controls = ol.control.defaults({
+          rotate: false,
+          zoom: false,
+          attribution: false,
+        }); 
+        var interactions = ol.interaction.defaults({
+            altShiftDragRotate: false, 
+            pinchRotate: false,
+            doubleClickZoom: false,
+            shiftDragZoom: false,
+        });
+        map = new ol.Map({
+            controls: controls, //[], //ol.control.defaults().extend([fullscreen]), //[fullscreen],
+            interactions: interactions,
+            target: document.getElementById('map'),
+            layers: [ortho], //[ortho, poiLayer],
+            view: view
+        })
+
+
+
+
+
+
+
+
+
+
+        /**
+         * Feature Popup Definition
+         * */
+        // Define the Popup and add it to the map as ol.Overlay object
+        const element = document.getElementById('popup');
+
+        const popup = new ol.Overlay({
+            element: element,
+            positioning: 'bottom-center',
+            stopEvent: false,
+        });
+        map.addOverlay(popup);
+
+
+
+
+
+        
+        /**
+         * MAP INTERACTIONS
+         * */
+        
+        /**
+         * map.CLICK
+         *  - Display popup on click
+         * */
+        map.on('click', function (evt) {
+
+            let featureLayer;
+            const feature = map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
+              //console.log(layer.get('id'))
+                featureLayer = layer;
+                return feature;
+            });       
+
+            if (feature) {
+                console.warn('CLICKED Feature: ',feature)
+                
+                // What Layer is the selected feature from?
+                if (featureLayer) { console.log('featureLayer: ',featureLayer.get('id')); }
+
+                /**
+                 * Set Popover Content individually for each layer
+                 * */
+                let content;
+                switch (featureLayer.get('id')) {
+                    case 'poiLayer':
+                        content = '<strong>'+feature.get('name')+'</strong><br>'+feature.get('descr');
+                        break;
+                    default:
+                        //content = dayjs(Number(feature.get('name'))).locale('de-swiss').format('dddd, D. MMMM YYYY\n HH:mm')
+                        content = '💛<strong>'+feature.get('name')+'</strong><br>'+feature.get('descr'); //'<strong>'+feature.get('name')+'<strong>';
+                }
+                content = (content) ? content : 'no details available ;-(';
+
+                /** CREATE POPOVER */
+                  $(element).popover('dispose');
+                  popup.setPosition(evt.coordinate);
+                  $(element).popover({
+                      placement: 'top',
+                      html: true,
+                      //content: content+'<br>'+dayjs(Number(content)).format('D. MMMM YYYY, HH:mm:ss Z'),
+                      content: '<p class="fs-6 mb-0">'+content+'</p>',
+                      container: '#main'
+                  });
+                  
+                  $(element).popover('show');
+                  //$('.popover-body').addClass('overflow-scroll'); // overflow auto FIX
+
+                  // // Set text color for the title and the figure
+                  // $('.color-me').css('color',feature.get('Color') || Config.DEFAULT_COLOR);   
+                  // $('.color-me-bg').css('color',Config.DEFAULT_BGCOLOR);   
+                  // $('.color-me-txt').css('color',Config.DEFAULT_COLOR);  
+
+            } else {
+                // Remove popover and reset the form
+                $(element).popover('dispose');
+                console.log('no feature at this location')
+            }
+        });
+
+        /**
+         * map.POINTERMOVE
+         *  - Change mouse cursor when over marker
+         *  → requires the map target to be an element, not a string!
+         * */
+        map.on('pointermove', function (e) {
+          const pixel = map.getEventPixel(e.originalEvent);
+          const hit = map.hasFeatureAtPixel(pixel);
+          map.getTarget().style.cursor = hit ? 'pointer' : '';
+        });
+
+        /**
+         * map.MOVESTART
+         *  - Close the popup when the map is moved
+         * */
+        map.on('movestart', function () {
+          //console.log('movestart')
+          $(element).popover('hide');
+        });
+        map.on('moveend', function () {
+          //console.log('moveend')
+          $(element).popover('show');
+        });
+
+
+
+
+
+
+        // Animation: Pan from here
+        panFromHere(coords);
+
+
+
+
+
+
+
+        /**
+         * Get some info on the coordinates from the geo.admin.ch API
+         * → ASYNC CALL
+         * */
+        //const myInfo = getCoordInfo(coords);
+        
+        console.log('Fetching coords info....')
+        const myInfo = await getCoordInfo(coords);
+
+        /** NOW, INFORMATION IS READILY AVAILABE FOR PROCESSING/USE */
+        // If needed, process height now...
+        //console.log('Go ahead with ',height)
+     
+
+
+
+
+
+
+        /** Point Marker Default Style */
+        const fill = new ol.style.Fill({
+          color: 'rgba(255,255,255,0.4)',
+        });
+        const stroke = new ol.style.Stroke({
+          color: '#d6e630',
+          width: 1.15,
+        });
+        // const styles = [
+        //   new ol.style.Style({
+        //     image: new ol.style.Circle({
+        //       fill: fill,
+        //       stroke: stroke,
+        //       radius: 5,
+        //     }),
+        //     fill: fill,
+        //     stroke: stroke,
+        //   }),
+        // ];
+        const styleDefault = new ol.style.Style({
+            image: new ol.style.Circle({
+              fill: fill,
+              stroke: stroke,
+              radius: 5,
+            }),
+            fill: fill,
+            stroke: stroke,
+        });
+
+
+        const fill2 = new ol.style.Fill({
+          color: 'rgba(189, 26, 164, 0.8)',
+        });
+        const stroke2 = new ol.style.Stroke({
+          color: '#bd1aa4',
+          width: 1.15,
+        });
+        const styleDefault2 = new ol.style.Style({
+          image: new ol.style.RegularShape({
+            fill: fill2,
+            stroke: stroke2,
+            points: 5,
+            radius: 10,
+            radius2: 4,
+            angle: 0,
+          }),
+        });
+
+
+        /**
+         * POI Point Vector Layer Definition
+         * */
+        /** Processing POI Data (Positions) from GAS */
+        P = DATA.positions; // Object holding all features (positions)
+        console.log('%s Positions received from GAS. Processing them...',Object.keys(P).length)
+
+        // Process all positions, create an OL feature from it, assign a marker style and add it to the features[] array
+        let features = [];
+        for (var i in P) {
+          let p = P[i];
+          //console.log(p)
+          let feature = new ol.Feature({
+            'geometry': new ol.geom.Point([p[1],p[0]]),
+            'name':     p[2], //i,
+            'descr':    p[3],
+          });
+          // Push the feature to the features Array
+          features.push(feature)
+        }
+        console.log('%s features created',features.length)
+
+        /** POI Point Vector Source Definition */
+        var poisource = new ol.source.Vector({
+            features: features, //[feature],
+            attributions: 'POI-data: © <a href="https://www.pawa.ch">pawa</a>',
+        });
+
+        /** POI Point Vector Layer Definition */
+        var poiLayer = new ol.layer.Vector({
+            id: 'poiLayer',
+            source: poisource,
+            style: styleDefault,
+            minZoom: (isMobile) ? 9 : 10, //11, // visible at zoom levels above X
+        });
+
+        map.addLayer(poiLayer);
+
+
+        /** 
+         * Processing LIKES POI Data (Likes) from GAS 
+         * */
+        L = DATA.likes; // Object holding all features (positions)
+        console.log('%s LIKES Positions received from GAS. Processing them...',Object.keys(L).length)
+
+        // Process all positions, create an OL feature from it, assign a marker style and add it to the features[] array
+        let likes = [];
+        for (var i in L) {
+          let p = L[i];
+          let feature = new ol.Feature({
+            'geometry': new ol.geom.Point([p[1],p[0]]),
+            'name':     p[2], //i,
+            'descr':    p[3],
+          });
+          // Push the feature to the features Array
+          likes.push(feature)
+        }
+        console.log('%s LIKES features created',likes.length)
+
+        /** POI Point Vector Source Definition */
+        var likessource = new ol.source.Vector({
+            features: likes,
+            attributions: 'Likes-data: © <a href="https://www.pawa.ch">pawa</a>',
+        });
+
+        /** POI Point Vector Layer Definition */
+        var likesLayer = new ol.layer.Vector({
+            id: 'likesLayer',
+            source: likessource,
+            style: styleDefault2,
+        });
+
+        map.addLayer(likesLayer);
+
+
+
+        console.log('END initMap()')
+        console.log('✔️ Map ready!')
+
+
+        // Make the controls visible as the map is ready now
+        $('#controls-top').removeClass('invisible');
+
+
+    } // END initMap()
+
+
+
+
+    /**
+     * Toggles Interval for new random Coordinates
+     * */
+    var restartTimeout;
+    function toggleInterval() {
+      view.setRotation(0);
+
+      if (intervalRandomCoords) {
+        /* Disable the timer */
+        clearInterval(intervalRandomCoords)
+        clearTimeout(restartTimeout); // clear any potentially restart timeouts
+        intervalRandomCoords = null;
+        $('#toggleAnimation').html("<i class='bx bx-play-circle'></i>")
+        console.log('Interval cleared!')
+
+      } else {
+        /* Enable the timer again */
+        //view.setCenter(map.getView().getCenter());
+        const currZoom = view.getZoom(); console.log('current zoom: ',currZoom)
+        if ( currZoom > zoom) {
+          console.log('zooming out...')
+          view.setZoom(zoom); // avoids lagging (loading many hi-res tiles along the way)
+        }
+        intervalRandomCoords = setInterval(centerOnCoordinates, INTERVAL);
+        $('#toggleAnimation').html("<i class='bx bx-pause-circle'></i>")
+        console.log('Interval for new coordinates set to %s seconds',INTERVAL/1000)
+        // start with new coordinates after a short delay
+        restartTimeout = setTimeout(centerOnCoordinates, 500);
+      }
+    }
+
+    /**
+     * window.on.load - Initialise the map
+     * */
+    window.addEventListener('load', function () {
+      /** Initialize the map */
+      console.log('Initialising map. Hang tight...');
+      //initMap();
+      console.log('Loading data from GAS for the map......');
+      google.script.run.withSuccessHandler(initMap).getData();
+      
+      
+
+      /** SetInterval: centerOnCoordinates */
+      intervalRandomCoords = setInterval(centerOnCoordinates, INTERVAL);
+      console.log('Interval for new coordinates set to %s seconds',INTERVAL/1000)
+      
+      /** Initialising Popovers */
+      // var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'))
+      // var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+      //   return new bootstrap.Popover(popoverTriggerEl)
+      // })
+
+      // Initialise the 'copied data' popover
+      var popoverOverlay = new bootstrap.Popover(document.querySelector('#overlay'), {
+        container: '#main'
+      });
+      var popoverLike = new bootstrap.Popover(document.querySelector('#like'), {
+        container: '#main'
+      });
+
+
+    });
+
+
+</script>

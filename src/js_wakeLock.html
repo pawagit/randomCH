@@ -1,0 +1,43 @@
+<script>
+    /**
+     * Prevent the screen from going to sleep using the Screen Wake Lock API
+     *  - Reference:  https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API
+     *  - Howto:      https://mikevdv.dev/blog/2022-06-23-stop-the-screen-going-to-sleep-with-javascript
+     * */
+    
+    // Test for Screen Wake Lock Capabilities
+    const canWakeLock = () => 'wakeLock' in navigator;
+
+    let wakelock;
+    // Async function to aquire a screen lock
+    async function lockWakeState() {
+      if(!canWakeLock()) return;
+      try {
+        wakelock = await navigator.wakeLock.request();
+        wakelock.addEventListener('release', () => {
+          console.warn('Screen Wake State Locked:', !wakelock.released);
+        });
+        console.warn('Screen Wake State Locked:', !wakelock.released);
+      } catch(e) {
+        console.error('Failed to lock wake state with reason:', e.message);
+      }
+    }
+
+    // Function to release the wake lock
+    function releaseWakeState() {
+      if(wakelock) wakelock.release();
+      wakelock = null;
+      console.warn('wake lock released!')
+    }
+
+    // Function that reaquires the lock on document visibility change
+    const handleVisibilityChange = () => {
+      if (wakelock !== null && document.visibilityState === 'visible') {
+        console.warn('re-aquiring the lock...')
+        lockWakeState();
+      }
+    }
+    // Add requireLock function to visibilitychange
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+</script>

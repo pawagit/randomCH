@@ -1,0 +1,59 @@
+<script>
+  /**
+   * Determine a random map center within CH
+   * @requires: geoJsonLayer ol.Layer Object 'schweiz' 
+   * 
+   * Extent of CH is: "E_MIN": 2485410.0, "E_MAX": 2833858.0, "N_MIN": 1075268.0, "N_MAX": 1295934.0
+   * */
+  function getRandomCHCoordinates() {
+      
+      //console.log(schweiz)
+      let coords;
+      let isCH = false;
+      let cnt = 0;
+      let ext = {
+        "E_MIN": 2485410.0, 
+        "E_MAX": 2833858.0, 
+        "N_MIN": 1075268.0, 
+        "N_MAX": 1295934.0
+      };
+      ext['dE'] = ext.E_MAX - ext.E_MIN;
+      ext['dN'] = ext.N_MAX - ext.N_MIN;
+
+      while (!isCH && cnt < 1000) {
+        cnt++;
+        const randE = randomIntFromInterval(ext.E_MIN,ext.E_MAX);
+        const randN = randomIntFromInterval(ext.N_MIN,ext.N_MAX);
+        coords = [randE,randN]; //console.log('alea iacta est:',coords)
+        
+        [Lon,Lat] = new ol.geom.Point(coords).transform(MAP_PROJ,'EPSG:4326').getCoordinates(); //console.log([Lon,Lat])
+        
+        const nFeatures = geoJsonLayer.getSource().getFeaturesAtCoordinate([Lon,Lat]).length; //console.log(nFeatures)
+        
+        if (nFeatures > 0) { 
+          isCH = true; // the coordinates are inside the polygon (CH)
+          console.log('✔️ Coordinates found in %s iteration(s)',cnt,coords)
+          //console.log(coords)
+        }
+      }
+
+      // Update the gobal ID for the new Coordinates
+      let d = new Date();
+      ID = d.valueOf(); 
+
+      // Reset the likes flag and button
+      IS_LIKED = false;
+      $('#like').removeClass('text-yellow')
+      $('#like').html("<i class='bx bx-heart'></i>")
+
+      return coords;
+  }
+
+
+  /**
+   * Randbetween helper function
+   * */
+  function randomIntFromInterval(min, max) { // min and max included 
+    return Math.floor(Math.random() * (max - min + 1) + min)
+  }
+</script>

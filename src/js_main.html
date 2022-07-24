@@ -1,0 +1,84 @@
+<script>
+    /**
+     * Toggles Interval for new random Coordinates
+     * */
+     var restartTimeout;
+    function toggleInterval() {
+      view.setRotation(0);
+
+      if (intervalRandomCoords) {
+        /* Disable the timer */
+        clearInterval(intervalRandomCoords)
+        clearTimeout(restartTimeout); // clear any potentially restart timeouts
+        intervalRandomCoords = null;
+        $('#toggleAnimation').html("<i class='bx bx-play-circle fs-1'></i>")
+        console.log('Interval cleared!')
+
+      } else {
+        /* Enable the timer again */
+        //view.setCenter(map.getView().getCenter());
+        const currZoom = view.getZoom(); console.log('current zoom: ',currZoom)
+        if ( currZoom > zoom) {
+          console.log('zooming out...')
+          view.setZoom(zoom); // avoids lagging (loading many hi-res tiles along the way)
+        }
+        intervalRandomCoords = setInterval(centerOnCoordinates, INTERVAL);
+        $('#toggleAnimation').html("<i class='bx bx-pause-circle fs-1'></i>")
+        console.log('Interval for new coordinates set to %s seconds',INTERVAL/1000)
+        // start with new coordinates after a short delay
+        restartTimeout = setTimeout(centerOnCoordinates, 500);
+      }
+    }
+
+
+    /**
+     * Center Map View on new, random Coordinates
+     * */
+    function centerOnCoordinates() {
+        view.setRotation(0);
+        coords = getRandomCHCoordinates();
+        view.setZoom(zoom); // set the zoom first to avoid lagging during the animation
+        view.setCenter(coords)
+        // view.animate({ 
+        //   //zoom: zoom,
+        //   center: coords, 
+        //   duration: 100 
+        // });
+
+        // Fetch coordinates info from the REST API
+        getCoordInfo(coords);
+
+        /* Log the info to GAS */
+        //logToGAS();
+
+        // Animation: Pan from here
+        panFromHere(coords);
+    }
+ 
+
+
+    /**
+     * Get a second pair of coordinates to slowly pan to
+     * */
+    function panFromHere(coords) {
+        
+        let a = randomIntFromInterval(0, 360);
+        // Round up to the nearest 15° degrees for smoother animations
+        let b = Math.ceil(a / 15) * 15;
+
+        let offset = (isMobile) ? 500 : 250; // 250m max on desktop, 500m on mobile (lower zoom)
+        let dE = Math.sin(b*(Math.PI/180))*offset;
+        let dN = Math.cos(b*(Math.PI/180))*offset; 
+
+        coords2 = [coords[0]+dE, coords[1]+dN];
+        setTimeout(function() {
+          view.animate({ 
+            center: coords2,
+            duration: 14000 
+          });
+        }, 1000)
+    }
+
+
+
+</script>
